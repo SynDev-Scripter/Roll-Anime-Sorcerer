@@ -1,11 +1,22 @@
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local CoreGui = game:GetService("CoreGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local LocalPlayer = Players.LocalPlayer
+
+local EventConfig = nil
+
+pcall(function()
+    EventConfig = require(
+        ReplicatedStorage
+            :WaitForChild("Config")
+            :WaitForChild("EventConfig")
+    )
+end)
 
 local LUCKY_BLOCKS = {
     "Awakening",
@@ -518,6 +529,63 @@ local function buySelectedBlocks(isAutoRun)
     busy = false
 end
 
+local function getEventDisplayName(eventId)
+    if not EventConfig or not eventId then
+        return "Unknown"
+    end
+
+    local success, eventData = pcall(function()
+        return EventConfig.GetEvent(eventId)
+    end)
+
+    if success and eventData then
+        return eventData.Name or tostring(eventId)
+    end
+
+    return tostring(eventId)
+end
+
+local function getUpcomingEvents()
+    if not EventConfig then
+        return "Unknown", "Unknown"
+    end
+
+    local success, state = pcall(function()
+        return EventConfig.GetState()
+    end)
+
+    if not success or not state then
+        return "Unknown", "Unknown"
+    end
+
+    local nextEventId
+    local afterEventId
+
+    if state.IsEventActive then
+        nextEventId = EventConfig.ChooseEvent(
+            state.CycleIndex + 1
+        )
+
+        afterEventId = EventConfig.ChooseEvent(
+            state.CycleIndex + 2
+        )
+    else
+        nextEventId =
+            state.SelectedEventId
+            or EventConfig.ChooseEvent(
+                state.CycleIndex
+            )
+
+        afterEventId = EventConfig.ChooseEvent(
+            state.CycleIndex + 1
+        )
+    end
+
+    return
+        getEventDisplayName(nextEventId),
+        getEventDisplayName(afterEventId)
+end
+
 local function createGUI()
     local parentTarget =
         CoreGui:FindFirstChild("RobloxGui")
@@ -540,9 +608,9 @@ local function createGUI()
     local MainFrame = Instance.new("Frame")
 
     MainFrame.Name = "MainFrame"
-    MainFrame.Size = UDim2.new(0, 320, 0, 520)
+    MainFrame.Size = UDim2.new(0, 320, 0, 575)
     MainFrame.Position =
-        UDim2.new(0.5, -160, 0.5, -260)
+        UDim2.new(0.5, -160, 0.5, -287)
 
     MainFrame.BackgroundColor3 = COLORS.Background
     MainFrame.BorderSizePixel = 0
@@ -1166,6 +1234,86 @@ local function createGUI()
         StatusLabel.Text =
             "Status: " .. message
     end
+
+    local EventFrame =
+        Instance.new("Frame")
+
+    EventFrame.Size =
+        UDim2.new(1, -24, 0, 48)
+
+    EventFrame.Position =
+        UDim2.new(0, 12, 0, 500)
+
+    EventFrame.BackgroundColor3 =
+        COLORS.CardBg
+
+    EventFrame.BorderSizePixel = 0
+    EventFrame.Parent = MainFrame
+
+    local EventCorner =
+        Instance.new("UICorner")
+
+    EventCorner.CornerRadius =
+        UDim.new(0, 8)
+
+    EventCorner.Parent = EventFrame
+
+    local NextEventLabel =
+        Instance.new("TextLabel")
+
+    NextEventLabel.Size =
+        UDim2.new(1, -16, 0, 20)
+
+    NextEventLabel.Position =
+        UDim2.new(0, 8, 0, 4)
+
+    NextEventLabel.BackgroundTransparency = 1
+    NextEventLabel.Text = "NEXT: Loading..."
+    NextEventLabel.TextColor3 =
+        COLORS.TextPrimary
+    NextEventLabel.TextSize = 10
+    NextEventLabel.Font =
+        Enum.Font.GothamBold
+    NextEventLabel.TextXAlignment =
+        Enum.TextXAlignment.Left
+
+    NextEventLabel.Parent = EventFrame
+
+    local AfterEventLabel =
+        Instance.new("TextLabel")
+
+    AfterEventLabel.Size =
+        UDim2.new(1, -16, 0, 18)
+
+    AfterEventLabel.Position =
+        UDim2.new(0, 8, 0, 25)
+
+    AfterEventLabel.BackgroundTransparency = 1
+    AfterEventLabel.Text = "AFTER: Loading..."
+    AfterEventLabel.TextColor3 =
+        COLORS.TextMuted
+    AfterEventLabel.TextSize = 9
+    AfterEventLabel.Font =
+        Enum.Font.GothamMedium
+    AfterEventLabel.TextXAlignment =
+        Enum.TextXAlignment.Left
+
+    AfterEventLabel.Parent = EventFrame
+
+    task.spawn(function()
+        while ScreenGui.Parent do
+            local nextEvent, afterEvent =
+                getUpcomingEvents()
+
+            NextEventLabel.Text =
+                "NEXT: " .. nextEvent
+
+            AfterEventLabel.Text =
+                "AFTER: " .. afterEvent
+
+            task.wait(1)
+        end
+    end)
 
     local KeybindLabel =
         Instance.new("TextLabel")
